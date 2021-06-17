@@ -218,6 +218,7 @@
  * Place the task represented by pxTCB into the appropriate ready list for
  * the task.  It is inserted at the end of the list.
  */
+==> Append task to end of list with uxPriority
 #define prvAddTaskToReadyList( pxTCB )                                                                 \
     traceMOVED_TASK_TO_READY_STATE( pxTCB );                                                           \
     taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );                                                \
@@ -336,6 +337,7 @@ typedef tskTCB TCB_t;
 
 /*lint -save -e956 A manual analysis and inspection has been used to determine
  * which static variables must be declared volatile. */
+==> PRIVILEGED_DATA limit the variable in privileged section
 PRIVILEGED_DATA TCB_t * volatile pxCurrentTCB = NULL;
 
 /* Lists for ready and blocked tasks. --------------------
@@ -571,6 +573,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
 
 #if ( configSUPPORT_STATIC_ALLOCATION == 1 )
 
+    ==> Create task with static memory block for pxTaskBuffer
     TaskHandle_t xTaskCreateStatic( TaskFunction_t pxTaskCode,
                                     const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
                                     const uint32_t ulStackDepth,
@@ -734,6 +737,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
         TCB_t * pxNewTCB;
         BaseType_t xReturn;
 
+	==> //Why stack growth direction impacts malloc memory for TCB? 
         /* If the stack grows down then allocate the stack then the TCB so the stack
          * does not grow into the TCB.  Likewise if the stack grows up then allocate
          * the TCB then the stack. */
@@ -857,6 +861,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
     #if ( portSTACK_GROWTH < 0 )
         {
             pxTopOfStack = &( pxNewTCB->pxStack[ ulStackDepth - ( uint32_t ) 1 ] );
+            ==> Align stack to specified size
             pxTopOfStack = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxTopOfStack ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
 
             /* Check the alignment of the calculated top of stack is correct. */
@@ -866,9 +871,11 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                 {
                     /* Also record the stack's high address, which may assist
                      * debugging. */
+                    ==> //Should this be pxStack?
                     pxNewTCB->pxEndOfStack = pxTopOfStack;
                 }
             #endif /* configRECORD_STACK_HIGH_ADDRESS */
+            ==> //Why not save pxEndOfStack if configRECORD_STACK_HIGH_ADDRESS is not defined?
         }
     #else /* portSTACK_GROWTH */
         {
@@ -1014,6 +1021,8 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                 {
                     #if ( portSTACK_GROWTH < 0 )
                         {
+                            ==> Reserve stack for context switch. This is platform (port) related.
+                            ==> The top of stack pointer is updated.
                             pxNewTCB->pxTopOfStack = pxPortInitialiseStack( pxTopOfStack, pxNewTCB->pxStack, pxTaskCode, pvParameters, xRunPrivileged );
                         }
                     #else /* portSTACK_GROWTH */
@@ -1136,6 +1145,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
          * then it should run now. */
         if( pxCurrentTCB->uxPriority < pxNewTCB->uxPriority )
         {
+            ==> Do task switch to preempt current task
             taskYIELD_IF_USING_PREEMPTION();
         }
         else
@@ -1165,6 +1175,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             /* Remove task from the ready/delayed list. */
             if( uxListRemove( &( pxTCB->xStateListItem ) ) == ( UBaseType_t ) 0 )
             {
+                ==> Clear priority in ready priority mask, since the list for the priority is empty.
                 taskRESET_READY_PRIORITY( pxTCB->uxPriority );
             }
             else
@@ -3020,6 +3031,7 @@ void vTaskSwitchContext( void )
     else
     {
         xYieldPending = pdFALSE;
+        ==> platform related process before task switched out
         traceTASK_SWITCHED_OUT();
 
         #if ( configGENERATE_RUN_TIME_STATS == 1 )
@@ -3063,6 +3075,7 @@ void vTaskSwitchContext( void )
         /* Select a new task to run using either the generic C or port
          * optimised asm code. */
         taskSELECT_HIGHEST_PRIORITY_TASK(); /*lint !e9079 void * is used as this macro is used with timers and co-routines too.  Alignment is known to be fine as the type of the pointer stored and retrieved is the same. */
+        ==> platform related process before task switched into
         traceTASK_SWITCHED_IN();
 
         /* After the new task is switched in, update the global errno. */
